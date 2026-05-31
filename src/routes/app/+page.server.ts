@@ -9,12 +9,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 	const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-	// No .lean(), no .populate() — just basic find
-	const accounts = await Account.find({ tenantId, isActive: true });
-	const allTransactions = await Transaction.find({ tenantId });
-	const recentTransactions = await Transaction.find({ tenantId })
-		.sort({ date: -1 })
-		.limit(5);
+	const [accounts, allTransactions, recentTransactions] = await Promise.all([
+		Account.find({ tenantId, isActive: true }).lean(),
+		Transaction.find({ tenantId }).lean(),
+		Transaction.find({ tenantId })
+			.sort({ date: -1 })
+			.limit(5)
+			.populate('categoryId', 'name color')
+			.populate('accountId', 'name')
+			.lean()
+	]);
 
 	let monthlyIncome = 0;
 	let monthlyExpenses = 0;
@@ -34,7 +38,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
-	const totalBalance = accounts.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
+	const totalBalance = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
 
 	return {
 		summary: {
@@ -45,9 +49,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			totalExpenses,
 			totalBalance: totalIncome - totalExpenses,
 			transactionCount: allTransactions.length,
-			recentTransactions: recentTransactions.map(t => t.toObject())
+			recentTransactions
 		},
-		accounts: accounts.map(a => a.toObject()),
+		accounts,
 		totalBalance
 	};
 };
