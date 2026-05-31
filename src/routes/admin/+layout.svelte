@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	let { children, data } = $props();
 </script>
@@ -8,7 +7,7 @@
 	userName={data.user?.name ?? ''}
 	userRole={data.user?.role ?? ''}
 	tenantName={data.tenant?.name ?? ''}
-	currentPath={$page.url.pathname}
+	currentPath=""
 />
 
 <main class="md:ml-64 min-h-screen p-4 md:p-8 pt-16 md:pt-8">
