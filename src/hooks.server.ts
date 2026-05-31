@@ -1,49 +1,26 @@
 import { connectDB, isDBConnected } from '$lib/server/db';
 import { validateSession } from '$lib/server/auth';
-import { autoSeed } from '$lib/server/seed-auto';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 
-let seedAttempted = false;
-
 export const handle: Handle = async ({ event, resolve }) => {
-	// Connect to DB lazily
-	try {
-		await connectDB();
-	} catch (err) {
-		console.error('Failed to connect to MongoDB:', err);
-	}
+	try { await connectDB(); } catch (err) { console.error('DB connect error:', err); }
 
-	// Auto-seed on first request after DB connects
-	if (isDBConnected() && !seedAttempted) {
-		seedAttempted = true;
-		try {
-			const seeded = await autoSeed();
-			if (seeded) console.log('[hooks] Auto-seed completed');
-		} catch (err) {
-			console.error('[hooks] Auto-seed error:', err);
-		}
-	}
-
-	// Validate session
 	if (isDBConnected()) {
 		try {
 			const sessionData = await validateSession(event.cookies);
 			if (sessionData) {
-				const userObj = sessionData.user;
-				const tenantObj = sessionData.tenant;
-
 				event.locals.user = {
-					id: String(userObj._id),
-					tenantId: String(userObj.tenantId._id || userObj.tenantId),
-					email: userObj.email,
-					name: userObj.name,
-					role: userObj.role
+					id: String(sessionData.user._id),
+					tenantId: String(sessionData.user.tenantId._id || sessionData.user.tenantId),
+					email: sessionData.user.email,
+					name: sessionData.user.name,
+					role: sessionData.user.role
 				};
 				event.locals.tenant = {
-					id: String(tenantObj._id),
-					name: tenantObj.name,
-					slug: tenantObj.slug,
-					plan: tenantObj.plan
+					id: String(sessionData.tenant._id),
+					name: sessionData.tenant.name,
+					slug: sessionData.tenant.slug,
+					plan: sessionData.tenant.plan
 				};
 			} else {
 				event.locals.user = null;
@@ -59,14 +36,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.locals.tenant = null;
 	}
 
-	const response = await resolve(event);
-	return response;
+	return resolve(event);
 };
 
 export const handleError: HandleServerError = async ({ error, event }) => {
 	console.error('Error:', error instanceof Error ? error.message : error, 'URL:', event.url.pathname);
-	return {
-		message: 'Error interno del servidor',
-		code: 'INTERNAL_ERROR'
-	};
+	return { message: 'Error interno del servidor', code: 'INTERNAL_ERROR' };
 };
