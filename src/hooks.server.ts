@@ -13,12 +13,15 @@ export const handle: Handle = async ({ event, resolve }) => {
 		console.error('Failed to connect to MongoDB:', err);
 	}
 
-	// Auto-seed on first request after DB connection
+	// Auto-seed synchronously on first request
 	if (isDBConnected() && !seedAttempted) {
 		seedAttempted = true;
-		autoSeed().then((seeded) => {
-			if (seeded) console.log('[hooks] Auto-seed done');
-		});
+		try {
+			const seeded = await autoSeed();
+			if (seeded) console.log('[hooks] Auto-seed completed');
+		} catch (err) {
+			console.error('[hooks] Auto-seed error:', err);
+		}
 	}
 
 	// Only validate session if DB is connected

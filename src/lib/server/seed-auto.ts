@@ -7,11 +7,37 @@ import bcrypt from 'bcryptjs';
  */
 export async function autoSeed(): Promise<boolean> {
 	try {
+		// Wait for mongoose to be connected
+		if (mongoose.connection.readyState !== 1) {
+			console.log('[seed] Waiting for MongoDB connection...');
+			await new Promise<void>((resolve, reject) => {
+				const timeout = setTimeout(() => reject(new Error('Timeout waiting for DB connection')), 10000);
+				const check = () => {
+					if (mongoose.connection.readyState === 1) {
+						clearTimeout(timeout);
+						resolve();
+					} else if (mongoose.connection.readyState === 2) {
+						setTimeout(check, 100);
+					} else {
+						clearTimeout(timeout);
+						reject(new Error('DB connection failed'));
+					}
+				};
+				check();
+			});
+		}
+
 		const db = mongoose.connection.db;
-		if (!db) return false;
+		if (!db) {
+			console.error('[seed] No DB instance available');
+			return false;
+		}
 
 		const existingTenant = await db.collection('tenants').findOne({ slug: 'demo' });
-		if (existingTenant) return false; // Already seeded
+		if (existingTenant) {
+			console.log('[seed] Demo data already exists, skipping');
+			return false;
+		}
 
 		console.log('[seed] No demo data found — running auto-seed...');
 
