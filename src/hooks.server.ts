@@ -58,6 +58,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 export const handleError: HandleServerError = async ({ error, event }) => {
 	console.error('Server error:', error, 'URL:', event.url.pathname);
 
+	// Log more details if available
+	if (error instanceof Error) {
+		console.error('  message:', error.message);
+		console.error('  stack:', error.stack?.split('\n').slice(0, 4).join('\n'));
+	}
+
 	return {
 		message: 'Error interno del servidor',
 		code: 'INTERNAL_ERROR'

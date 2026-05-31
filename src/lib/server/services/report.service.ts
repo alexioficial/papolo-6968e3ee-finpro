@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
 import { Transaction } from '../models/Transaction';
+import { Account } from '../models/Account';
 
 interface ReportFilters {
 	tenantId: string;
@@ -15,69 +15,58 @@ export async function getDashboardSummary(tenantId: string) {
 	const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 	const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-	const [monthlyTotals, totalIncome, totalExpenses, recentTransactions] = await Promise.all([
-		Transaction.aggregate([
-			{ $match: { tenantId: new mongoose.Types.ObjectId(tenantId) } },
-			{
-				$group: {
-					_id: null,
-					monthlyIncome: {
-						$sum: {
-							$cond: [
-								{ $and: [{ $eq: ['$type', 'income'] }, { $gte: ['$date', startOfMonth] }, { $lte: ['$date', endOfMonth] }] },
-								'$amount',
-								0
-							]
-						}
-					},
-					monthlyExpenses: {
-						$sum: {
-							$cond: [
-								{ $and: [{ $eq: ['$type', 'expense'] }, { $gte: ['$date', startOfMonth] }, { $lte: ['$date', endOfMonth] }] },
-								'$amount',
-								0
-							]
-						}
-					},
-					totalIncome: {
-						$sum: { $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0] }
-					},
-					totalExpenses: {
-						$sum: { $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0] }
-					},
-					count: { $sum: 1 }
-				}
+	try {
+		const [allTransactions, recentTransactions] = await Promise.all([
+			Transaction.find({ tenantId }).lean(),
+			Transaction.find({ tenantId })
+				.sort({ date: -1 })
+				.limit(5)
+				.populate('categoryId', 'name color')
+				.populate('accountId', 'name')
+				.lean()
+		]);
+
+		let monthlyIncome = 0;
+		let monthlyExpenses = 0;
+		let totalIncome = 0;
+		let totalExpenses = 0;
+
+		for (const t of allTransactions) {
+			const tDate = new Date(t.date);
+			const isThisMonth = tDate >= startOfMonth && tDate <= endOfMonth;
+
+			if (t.type === 'income') {
+				totalIncome += t.amount;
+				if (isThisMonth) monthlyIncome += t.amount;
+			} else {
+				totalExpenses += t.amount;
+				if (isThisMonth) monthlyExpenses += t.amount;
 			}
-		]),
-		Transaction.aggregate([
-			{ $match: { tenantId: new mongoose.Types.ObjectId(tenantId), type: 'income' } },
-			{ $group: { _id: null, total: { $sum: '$amount' } } }
-		]),
-		Transaction.aggregate([
-			{ $match: { tenantId: new mongoose.Types.ObjectId(tenantId), type: 'expense' } },
-			{ $group: { _id: null, total: { $sum: '$amount' } } }
-		]),
-		Transaction.find({ tenantId })
-			.sort({ date: -1 })
-			.limit(5)
-			.populate('categoryId', 'name color')
-			.populate('accountId', 'name')
-			.lean()
-	]);
+		}
 
-	const summary =
-		monthlyTotals[0] || { monthlyIncome: 0, monthlyExpenses: 0, totalIncome: 0, totalExpenses: 0, count: 0 };
-
-	return {
-		monthlyIncome: summary.monthlyIncome,
-		monthlyExpenses: summary.monthlyExpenses,
-		monthlyBalance: summary.monthlyIncome - summary.monthlyExpenses,
-		totalIncome: totalIncome[0]?.total || 0,
-		totalExpenses: totalExpenses[0]?.total || 0,
-		totalBalance: (totalIncome[0]?.total || 0) - (totalExpenses[0]?.total || 0),
-		transactionCount: summary.count,
-		recentTransactions
-	};
+		return {
+			monthlyIncome,
+			monthlyExpenses,
+			monthlyBalance: monthlyIncome - monthlyExpenses,
+			totalIncome,
+			totalExpenses,
+			totalBalance: totalIncome - totalExpenses,
+			transactionCount: allTransactions.length,
+			recentTransactions
+		};
+	} catch (err) {
+		console.error('getDashboardSummary error:', err);
+		return {
+			monthlyIncome: 0,
+			monthlyExpenses: 0,
+			monthlyBalance: 0,
+			totalIncome: 0,
+			totalExpenses: 0,
+			totalBalance: 0,
+			transactionCount: 0,
+			recentTransactions: []
+		};
+	}
 }
 
 export async function getMonthlyTrends(tenantId: string, months = 6) {
@@ -87,7 +76,7 @@ export async function getMonthlyTrends(tenantId: string, months = 6) {
 	return Transaction.aggregate([
 		{
 			$match: {
-				tenantId: new mongoose.Types.ObjectId(tenantId),
+				tenantId,
 				date: { $gte: startDate }
 			}
 		},
@@ -111,17 +100,13 @@ export async function getCategoryBreakdown(
 	type: 'income' | 'expense',
 	filters?: ReportFilters
 ) {
-	const match: Record<string, unknown> = {
-		tenantId: new mongoose.Types.ObjectId(tenantId),
-		type
-	};
-
+	const match: Record<string, unknown> = { tenantId, type };
 	if (filters?.startDate || filters?.endDate) {
 		match.date = {};
 		if (filters.startDate) match.date.$gte = filters.startDate;
 		if (filters.endDate) match.date.$lte = filters.endDate;
 	}
-	if (filters?.accountId) match.accountId = new mongoose.Types.ObjectId(filters.accountId);
+	if (filters?.accountId) match.accountId = filters.accountId;
 
 	return Transaction.aggregate([
 		{ $match: match },
@@ -151,79 +136,64 @@ export async function getDetailedReport(
 ) {
 	const { page = 1, limit = 50, startDate, endDate, accountId, categoryId, type } = filters;
 
-	const match: Record<string, unknown> = { tenantId: new mongoose.Types.ObjectId(tenantId) };
-
+	const match: Record<string, unknown> = { tenantId };
 	if (startDate || endDate) {
 		match.date = {};
 		if (startDate) match.date.$gte = startDate;
 		if (endDate) match.date.$lte = endDate;
 	}
-	if (accountId) match.accountId = new mongoose.Types.ObjectId(accountId);
-	if (categoryId) match.categoryId = new mongoose.Types.ObjectId(categoryId);
+	if (accountId) match.accountId = accountId;
+	if (categoryId) match.categoryId = categoryId;
 	if (type) match.type = type;
 
-	const [data, total] = await Promise.all([
-		Transaction.aggregate([
-			{ $match: match },
-			{
-				$lookup: {
-					from: 'categories',
-					localField: 'categoryId',
-					foreignField: '_id',
-					as: 'category'
+	try {
+		const [data, total, totals] = await Promise.all([
+			Transaction.find(match)
+				.sort({ date: -1 })
+				.skip((page - 1) * limit)
+				.limit(limit)
+				.populate('categoryId', 'name color')
+				.populate('accountId', 'name')
+				.lean(),
+			Transaction.countDocuments(match),
+			Transaction.aggregate([
+				{ $match: match },
+				{
+					$group: {
+						_id: null,
+						totalIncome: { $sum: { $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0] } },
+						totalExpenses: { $sum: { $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0] } },
+						count: { $sum: 1 }
+					}
 				}
-			},
-			{ $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
-			{
-				$lookup: {
-					from: 'accounts',
-					localField: 'accountId',
-					foreignField: '_id',
-					as: 'account'
-				}
-			},
-			{ $unwind: { path: '$account', preserveNullAndEmptyArrays: true } },
-			{ $sort: { date: -1 } },
-			{ $skip: (page - 1) * limit },
-			{ $limit: limit },
-			{
-				$project: {
-					date: 1,
-					type: 1,
-					amount: 1,
-					description: 1,
-					reference: 1,
-					'category.name': 1,
-					'category.color': 1,
-					'account.name': 1
-				}
+			])
+		]);
+
+		const summary = totals[0] || { totalIncome: 0, totalExpenses: 0, count: 0 };
+
+		// Transform populated data to match expected shape
+		const transformed = data.map((r: any) => ({
+			...r,
+			category: r.categoryId || null,
+			account: r.accountId || null
+		}));
+
+		return {
+			data: transformed,
+			pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+			summary: {
+				totalIncome: summary.totalIncome,
+				totalExpenses: summary.totalExpenses,
+				balance: summary.totalIncome - summary.totalExpenses,
+				totalTransactions: summary.count
 			}
-		]),
-		Transaction.countDocuments(match)
-	]);
-
-	const totals = await Transaction.aggregate([
-		{ $match: match },
-		{
-			$group: {
-				_id: null,
-				totalIncome: { $sum: { $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0] } },
-				totalExpenses: { $sum: { $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0] } },
-				count: { $sum: 1 }
-			}
-		}
-	]);
-
-	const summary = totals[0] || { totalIncome: 0, totalExpenses: 0, count: 0 };
-
-	return {
-		data,
-		pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-		summary: {
-			totalIncome: summary.totalIncome,
-			totalExpenses: summary.totalExpenses,
-			balance: summary.totalIncome - summary.totalExpenses,
-			totalTransactions: summary.count
-		}
-	};
+		};
+	} catch (err) {
+		console.error('getDetailedReport error:', err);
+		return {
+			data: [],
+			pagination: { page, limit, total: 0, totalPages: 0 },
+			summary: { totalIncome: 0, totalExpenses: 0, balance: 0, totalTransactions: 0 }
+		};
+	}
 }
