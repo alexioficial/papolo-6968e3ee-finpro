@@ -17,8 +17,10 @@
 		{ href: '/admin/users', label: 'Usuarios', icon: '👤' }
 	];
 
+	let currentPath = $derived($page.url.pathname);
+
 	function isActive(href: string) {
-		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
+		return currentPath === href || currentPath.startsWith(href + '/');
 	}
 </script>
 
@@ -33,6 +35,7 @@
 
 <!-- Overlay -->
 {#if mobileOpen}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div
 		onclick={() => (mobileOpen = false)}
 		class="fixed inset-0 bg-black/30 z-40 md:hidden"
