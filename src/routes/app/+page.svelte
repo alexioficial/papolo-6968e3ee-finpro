@@ -10,6 +10,16 @@
 	function formatDate(date: Date | string): string {
 		return new Date(date).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 	}
+
+	function getCategoryName(txn: any): string {
+		if (!txn.categoryId) return 'Sin categoria';
+		return txn.categoryId.name || txn.categoryId?.toString().slice(-6) || 'Sin categoria';
+	}
+
+	function getAccountName(txn: any): string {
+		if (!txn.accountId) return '';
+		return txn.accountId.name || '';
+	}
 </script>
 
 <div class="max-w-6xl">
@@ -52,11 +62,7 @@
 								<div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
 									<span>{formatDate(txn.date)}</span>
 									<span>·</span>
-									<span class="truncate">{txn.categoryId?.name || 'Sin categoria'}</span>
-									{#if txn.accountId?.name}
-										<span>·</span>
-										<span class="truncate">{txn.accountId.name}</span>
-									{/if}
+									<span class="truncate">{getCategoryName(txn)}</span>
 								</div>
 							</div>
 							<span class="text-sm font-semibold ml-4 {txn.type === 'income' ? 'text-green-600' : 'text-red-600'}">
