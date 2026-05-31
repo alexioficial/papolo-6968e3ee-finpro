@@ -7,7 +7,18 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	}
 
 	return {
-		user: locals.user,
-		tenant: locals.tenant
+		user: {
+			id: locals.user.id,
+			tenantId: locals.user.tenantId,
+			email: locals.user.email,
+			name: locals.user.name,
+			role: locals.user.role
+		},
+		tenant: locals.tenant ? {
+			id: locals.tenant.id,
+			name: locals.tenant.name,
+			slug: locals.tenant.slug,
+			plan: locals.tenant.plan
+		} : null
 	};
 };

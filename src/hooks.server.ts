@@ -27,24 +27,38 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Only validate session if DB is connected
 	if (isDBConnected()) {
 		try {
-			const session = await validateSession(event.cookies);
-			if (session) {
+			const sessionData = await validateSession(event.cookies);
+			if (sessionData) {
+				const userObj = sessionData.user;
+				const tenantObj = sessionData.tenant;
+
+				// Safely extract IDs
+				const userId = typeof userObj._id === 'object' ? userObj._id.toString() : String(userObj._id);
+				const tenantId = typeof userObj.tenantId === 'object'
+					? (userObj.tenantId._id ? userObj.tenantId._id.toString() : String(userObj.tenantId))
+					: String(userObj.tenantId);
+
 				event.locals.user = {
-					id: session.user._id.toString(),
-					tenantId: session.user.tenantId._id?.toString() || session.user.tenantId.toString(),
-					email: session.user.email,
-					name: session.user.name,
-					role: session.user.role
+					id: userId,
+					tenantId: tenantId,
+					email: userObj.email,
+					name: userObj.name,
+					role: userObj.role
 				};
 				event.locals.tenant = {
-					id: session.tenant._id.toString(),
-					name: session.tenant.name,
-					slug: session.tenant.slug,
-					plan: session.tenant.plan
+					id: typeof tenantObj._id === 'object' ? tenantObj._id.toString() : String(tenantObj._id),
+					name: tenantObj.name,
+					slug: tenantObj.slug,
+					plan: tenantObj.plan
 				};
+			} else {
+				event.locals.user = null;
+				event.locals.tenant = null;
 			}
 		} catch (err) {
 			console.error('Session validation error:', err);
+			event.locals.user = null;
+			event.locals.tenant = null;
 		}
 	} else {
 		event.locals.user = null;
@@ -57,13 +71,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 export const handleError: HandleServerError = async ({ error, event }) => {
 	console.error('Server error:', error, 'URL:', event.url.pathname);
-
-	// Log more details if available
 	if (error instanceof Error) {
 		console.error('  message:', error.message);
-		console.error('  stack:', error.stack?.split('\n').slice(0, 4).join('\n'));
 	}
-
 	return {
 		message: 'Error interno del servidor',
 		code: 'INTERNAL_ERROR'
