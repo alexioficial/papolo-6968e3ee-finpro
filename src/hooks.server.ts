@@ -1,0 +1,45 @@
+import { connectDB } from '$lib/server/db';
+import { validateSession } from '$lib/server/auth';
+import type { Handle, HandleServerError } from '@sveltejs/kit';
+
+export const handle: Handle = async ({ event, resolve }) => {
+	// Connect to DB if not connected
+	try {
+		await connectDB();
+	} catch (err) {
+		console.error('Failed to connect to MongoDB:', err);
+	}
+
+	// Validate session for all routes
+	const session = await validateSession(event.cookies);
+	if (session) {
+		event.locals.user = {
+			id: session.user._id.toString(),
+			tenantId: session.user.tenantId._id?.toString() || session.user.tenantId.toString(),
+			email: session.user.email,
+			name: session.user.name,
+			role: session.user.role
+		};
+		event.locals.tenant = {
+			id: session.tenant._id.toString(),
+			name: session.tenant.name,
+			slug: session.tenant.slug,
+			plan: session.tenant.plan
+		};
+	} else {
+		event.locals.user = null;
+		event.locals.tenant = null;
+	}
+
+	const response = await resolve(event);
+	return response;
+};
+
+export const handleError: HandleServerError = async ({ error, event }) => {
+	console.error('Server error:', error, 'URL:', event.url.pathname);
+
+	return {
+		message: 'Error interno del servidor',
+		code: 'INTERNAL_ERROR'
+	};
+};
