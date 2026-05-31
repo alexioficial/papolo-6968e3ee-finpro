@@ -1,6 +1,9 @@
 import { connectDB, isDBConnected } from '$lib/server/db';
 import { validateSession } from '$lib/server/auth';
+import { autoSeed } from '$lib/server/seed-auto';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
+
+let seedAttempted = false;
 
 export const handle: Handle = async ({ event, resolve }) => {
 	// Connect to DB lazily
@@ -8,6 +11,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 		await connectDB();
 	} catch (err) {
 		console.error('Failed to connect to MongoDB:', err);
+	}
+
+	// Auto-seed on first request after DB connects
+	if (isDBConnected() && !seedAttempted) {
+		seedAttempted = true;
+		try {
+			const seeded = await autoSeed();
+			if (seeded) console.log('[hooks] Auto-seed completed');
+		} catch (err) {
+			console.error('[hooks] Auto-seed error:', err);
+		}
 	}
 
 	// Validate session

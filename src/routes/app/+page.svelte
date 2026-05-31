@@ -53,7 +53,7 @@
 									<span>{formatDate(txn.date)}</span>
 									<span>·</span>
 									<span class="truncate">{txn.categoryId?.name || 'Sin categoria'}</span>
-									{:#if txn.accountId?.name}
+									{#if txn.accountId?.name}
 										<span>·</span>
 										<span class="truncate">{txn.accountId.name}</span>
 									{/if}
