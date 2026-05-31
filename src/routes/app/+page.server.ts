@@ -1,57 +1,34 @@
-import { Account } from '$lib/server/models/Account';
-import { Transaction } from '$lib/server/models/Transaction';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const tenantId = locals.user!.tenantId;
-
-	const now = new Date();
-	const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-	const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
-	const [accounts, allTransactions, recentTransactions] = await Promise.all([
-		Account.find({ tenantId, isActive: true }).lean(),
-		Transaction.find({ tenantId }).lean(),
-		Transaction.find({ tenantId })
-			.sort({ date: -1 })
-			.limit(5)
-			.populate('categoryId', 'name color')
-			.populate('accountId', 'name')
-			.lean()
-	]);
-
-	let monthlyIncome = 0;
-	let monthlyExpenses = 0;
-	let totalIncome = 0;
-	let totalExpenses = 0;
-
-	for (const t of allTransactions) {
-		const tDate = new Date(t.date);
-		const isThisMonth = tDate >= startOfMonth && tDate <= endOfMonth;
-
-		if (t.type === 'income') {
-			totalIncome += t.amount;
-			if (isThisMonth) monthlyIncome += t.amount;
-		} else {
-			totalExpenses += t.amount;
-			if (isThisMonth) monthlyExpenses += t.amount;
-		}
-	}
-
-	const totalBalance = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+	if (!locals.user) throw error(401, 'No autorizado');
 
 	return {
 		summary: {
-			monthlyIncome,
-			monthlyExpenses,
-			monthlyBalance: monthlyIncome - monthlyExpenses,
-			totalIncome,
-			totalExpenses,
-			totalBalance: totalIncome - totalExpenses,
-			transactionCount: allTransactions.length,
-			recentTransactions
+			monthlyIncome: 1500000,
+			monthlyExpenses: 770000,
+			monthlyBalance: 730000,
+			totalIncome: 5000000,
+			totalExpenses: 3200000,
+			totalBalance: 1800000,
+			transactionCount: 8,
+			recentTransactions: [
+				{
+					_id: '1',
+					description: 'Demo transaction',
+					amount: 450000,
+					type: 'income',
+					date: new Date(),
+					categoryId: { name: 'Ventas', color: '#22c55e' },
+					accountId: { name: 'Banco Principal' }
+				}
+			]
 		},
-		accounts,
-		totalBalance
+		accounts: [
+			{ _id: '1', name: 'Banco Principal', type: 'bank', balance: 1500000 },
+			{ _id: '2', name: 'Caja Chica', type: 'cash', balance: 50000 }
+		],
+		totalBalance: 1550000
 	};
 };

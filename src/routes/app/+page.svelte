@@ -63,10 +63,6 @@
 									<span>{formatDate(txn.date)}</span>
 									<span>·</span>
 									<span class="truncate">{getCategoryName(txn)}</span>
-									{#if getAccountName(txn)}
-										<span>·</span>
-										<span class="truncate">{getAccountName(txn)}</span>
-									{/if}
 								</div>
 							</div>
 							<span class="text-sm font-semibold ml-4 {txn.type === 'income' ? 'text-green-600' : 'text-red-600'}">
