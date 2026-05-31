@@ -2,6 +2,7 @@ import { getTransactions } from '$lib/server/services/transaction.service';
 import { Account } from '$lib/server/models/Account';
 import { Category } from '$lib/server/models/Category';
 import { canWrite } from '$lib/server/authorize';
+import { serialize } from '$lib/server/serialize';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -16,26 +17,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const search = url.searchParams.get('q') || undefined;
 
 	const [result, accounts, categories] = await Promise.all([
-		getTransactions(tenantId, {
-			page,
-			limit: 20,
-			type: type as any,
-			accountId,
-			categoryId,
-			startDate,
-			endDate,
-			search
-		}),
+		getTransactions(tenantId, { page, limit: 20, type: type as any, accountId, categoryId, startDate, endDate, search }),
 		Account.find({ tenantId, isActive: true }).select('name type').lean(),
 		Category.find({ tenantId, isActive: true }).select('name type color').lean()
 	]);
 
-	return {
+	return serialize({
 		transactions: result.transactions,
 		pagination: result.pagination,
-		accounts,
-		categories,
+		accounts, categories,
 		filters: { type, accountId, categoryId, startDate, endDate, search, page },
 		canWrite: canWrite(locals.user!.role)
-	};
+	});
 };
