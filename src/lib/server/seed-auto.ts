@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 
 /**
  * Auto-seed: runs once on first deploy to populate demo data.
- * Only runs if no tenant with slug 'demo' exists.
+ * If demo tenant exists but has no users, it resets and recreates everything.
  */
 export async function autoSeed(): Promise<boolean> {
 	try {
@@ -34,12 +34,24 @@ export async function autoSeed(): Promise<boolean> {
 		}
 
 		const existingTenant = await db.collection('tenants').findOne({ slug: 'demo' });
+
+		// If tenant exists, check if it has complete data
 		if (existingTenant) {
-			console.log('[seed] Demo data already exists, skipping');
-			return false;
+			const userCount = await db.collection('users').countDocuments({ tenantId: existingTenant._id });
+			if (userCount > 0) {
+				console.log('[seed] Demo data already complete, skipping');
+				return false;
+			}
+			// Partial data found - reset everything for this tenant
+			console.log('[seed] Partial demo data found, resetting...');
+			await db.collection('tenants').deleteOne({ _id: existingTenant._id });
+			await db.collection('users').deleteMany({ tenantId: existingTenant._id });
+			await db.collection('categories').deleteMany({ tenantId: existingTenant._id });
+			await db.collection('accounts').deleteMany({ tenantId: existingTenant._id });
+			await db.collection('transactions').deleteMany({ tenantId: existingTenant._id });
 		}
 
-		console.log('[seed] No demo data found — running auto-seed...');
+		console.log('[seed] Creating demo data...');
 
 		// Create Tenant
 		const tenantResult = await db.collection('tenants').insertOne({
@@ -52,7 +64,7 @@ export async function autoSeed(): Promise<boolean> {
 		});
 		const tenantId = tenantResult.insertedId;
 
-		// Create Admin User (password: admin123)
+		// Create Admin User
 		const passwordHash = await bcrypt.hash('admin123', 12);
 		const adminResult = await db.collection('users').insertOne({
 			tenantId,
@@ -123,6 +135,7 @@ export async function autoSeed(): Promise<boolean> {
 			});
 			catDocs.push({ ...cat, _id: r.insertedId, type: 'expense' });
 		}
+		console.log(`[seed] Created ${catDocs.length} categories`);
 
 		function getCatId(name: string) {
 			return catDocs.find((c: any) => c.name === name)!._id;
@@ -141,9 +154,11 @@ export async function autoSeed(): Promise<boolean> {
 			tenantId, name: 'Tarjeta Corporativa', type: 'credit_card', balance: -150000, currency: 'ARS',
 			isActive: true, createdAt: new Date(), updatedAt: new Date()
 		});
+		console.log('[seed] Created 3 accounts');
 
+		// Transactions
 		const now = new Date();
-		const transactions = [
+		const txDocs = [
 			{ accountId: acc1.insertedId, categoryId: getCatId('Ventas'), type: 'income', amount: 450000, description: 'Venta de productos - Cliente Corp A', date: new Date(now.getFullYear(), now.getMonth(), 15), reference: 'FACT-001' },
 			{ accountId: acc1.insertedId, categoryId: getCatId('Servicios Profesionales'), type: 'income', amount: 280000, description: 'Consultoria mensual - Cliente B', date: new Date(now.getFullYear(), now.getMonth(), 10), reference: 'FACT-002' },
 			{ accountId: acc1.insertedId, categoryId: getCatId('Salarios'), type: 'expense', amount: 320000, description: 'Nomina mensual empleados', date: new Date(now.getFullYear(), now.getMonth(), 5), reference: 'REC-001' },
@@ -152,9 +167,7 @@ export async function autoSeed(): Promise<boolean> {
 			{ accountId: acc1.insertedId, categoryId: getCatId('Alquiler'), type: 'expense', amount: 200000, description: 'Alquiler oficina mensual', date: new Date(now.getFullYear(), now.getMonth(), 1), reference: 'REC-002' },
 			{ accountId: acc1.insertedId, categoryId: getCatId('Servicios (Luz, Agua, Internet)'), type: 'expense', amount: 45000, description: 'Servicios publicos del mes', date: new Date(now.getFullYear(), now.getMonth(), 3), reference: 'FACT-005' },
 			{ accountId: acc2.insertedId, categoryId: getCatId('Ventas'), type: 'income', amount: 35000, description: 'Venta menor - Cliente mostrador', date: new Date(now.getFullYear(), now.getMonth(), 18), reference: 'TICKET-001' }
-		];
-
-		const txDocs = transactions.map(t => ({
+		].map(t => ({
 			tenantId,
 			accountId: t.accountId,
 			categoryId: t.categoryId,
@@ -172,6 +185,7 @@ export async function autoSeed(): Promise<boolean> {
 		}));
 
 		await db.collection('transactions').insertMany(txDocs);
+		console.log(`[seed] Created ${txDocs.length} transactions`);
 
 		console.log('[seed] Auto-seed completed successfully!');
 		console.log('[seed]   Admin:   admin@empresa.com / admin123');
