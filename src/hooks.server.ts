@@ -1,3 +1,6 @@
+// Register all Mongoose models first
+import '$lib/server/models/index';
+
 import { connectDB, isDBConnected } from '$lib/server/db';
 import { validateSession } from '$lib/server/auth';
 import type { Handle, HandleServerError } from '@sveltejs/kit';

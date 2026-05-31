@@ -1,6 +1,9 @@
 import { Account } from '$lib/server/models/Account';
 import { Transaction } from '$lib/server/models/Transaction';
+import { Category } from '$lib/server/models/Category';
 import type { PageServerLoad } from './$types';
+
+// Category import is needed for Transaction.populate('categoryId') to work
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const tenantId = locals.user!.tenantId;
