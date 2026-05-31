@@ -3,12 +3,26 @@ import '$lib/server/models/index';
 
 import { connectDB, isDBConnected } from '$lib/server/db';
 import { validateSession } from '$lib/server/auth';
+import { autoSeed } from '$lib/server/seed-auto';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
+
+let seedAttempted = false;
 
 export const handle: Handle = async ({ event, resolve }) => {
 	try { await connectDB(); } catch (err) { console.error('DB connect error:', err); }
 
 	if (isDBConnected()) {
+		// Auto-seed once on first request
+		if (!seedAttempted) {
+			seedAttempted = true;
+			try {
+				const seeded = await autoSeed();
+				if (seeded) console.log('[hooks] Auto-seed completed');
+			} catch (err) {
+				console.error('[hooks] Auto-seed error:', err);
+			}
+		}
+
 		try {
 			const sessionData = await validateSession(event.cookies);
 			if (sessionData) {
@@ -43,7 +57,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 };
 
 export const handleError: HandleServerError = async ({ error, event }) => {
-	const msg = error instanceof Error ? `${error.message}\n${error.stack?.split('\n').slice(0,3).join('\n')}` : String(error);
-	console.error('ERROR:', msg, 'URL:', event.url.pathname);
-	return { message: msg.substring(0, 500), code: 'ERROR' };
+	const msg = error instanceof Error ? error.message : String(error);
+	console.error('Error:', msg, 'URL:', event.url.pathname);
+	return { message: 'Error interno del servidor', code: 'ERROR' };
 };
