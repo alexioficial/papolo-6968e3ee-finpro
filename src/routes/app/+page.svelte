@@ -13,12 +13,12 @@
 
 	function getCategoryName(txn: any): string {
 		if (!txn.categoryId) return 'Sin categoria';
-		return txn.categoryId.name || txn.categoryId?.toString().slice(-6) || 'Sin categoria';
+		return typeof txn.categoryId === 'object' ? (txn.categoryId.name || 'Sin categoria') : 'Sin categoria';
 	}
 
 	function getAccountName(txn: any): string {
 		if (!txn.accountId) return '';
-		return txn.accountId.name || '';
+		return typeof txn.accountId === 'object' ? (txn.accountId.name || '') : '';
 	}
 </script>
 
@@ -63,6 +63,10 @@
 									<span>{formatDate(txn.date)}</span>
 									<span>·</span>
 									<span class="truncate">{getCategoryName(txn)}</span>
+									{#if getAccountName(txn)}
+										<span>·</span>
+										<span class="truncate">{getAccountName(txn)}</span>
+									{/if}
 								</div>
 							</div>
 							<span class="text-sm font-semibold ml-4 {txn.type === 'income' ? 'text-green-600' : 'text-red-600'}">
