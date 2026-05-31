@@ -1,6 +1,6 @@
 import { connectDB, isDBConnected } from '$lib/server/db';
 import { validateSession } from '$lib/server/auth';
-import type { Handle } from '@sveltejs/kit';
+import type { Handle, HandleServerError } from '@sveltejs/kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	try { await connectDB(); } catch (err) { console.error('DB connect error:', err); }
@@ -37,4 +37,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	return resolve(event);
+};
+
+export const handleError: HandleServerError = async ({ error, event }) => {
+	const msg = error instanceof Error ? `${error.message}\n${error.stack?.split('\n').slice(0,3).join('\n')}` : String(error);
+	console.error('ERROR:', msg, 'URL:', event.url.pathname);
+	return { message: msg.substring(0, 500), code: 'ERROR' };
 };
