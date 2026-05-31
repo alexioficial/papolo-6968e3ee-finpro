@@ -1,36 +1,40 @@
 import mongoose from 'mongoose';
 import { dev } from '$app/environment';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+let cachedConnection: typeof mongoose | null = null;
+let connectionPromise: Promise<typeof mongoose> | null = null;
 
-if (!MONGODB_URI) {
-	throw new Error('MONGODB_URI environment variable is required');
-}
+export async function connectDB(): Promise<typeof mongoose | null> {
+	if (cachedConnection) return cachedConnection;
 
-let cached = global._mongooseConnection;
-
-if (!cached) {
-	cached = global._mongooseConnection = { conn: null, promise: null };
-}
-
-export async function connectDB() {
-	if (cached.conn) return cached.conn;
-
-	if (!cached.promise) {
-		cached.promise = mongoose.connect(MONGODB_URI, {
-			maxPoolSize: 10,
-			serverSelectionTimeoutMS: 5000,
-			socketTimeoutMS: 45000
-		});
+	const MONGODB_URI = process.env.MONGODB_URI;
+	if (!MONGODB_URI) {
+		console.warn('MONGODB_URI not set — DB features will be unavailable');
+		return null;
 	}
 
-	try {
-		cached.conn = await cached.promise;
-		if (dev) console.log('MongoDB connected');
-		return cached.conn;
-	} catch (error) {
-		cached.promise = null;
-		console.error('MongoDB connection error:', error);
-		throw error;
+	if (!connectionPromise) {
+		connectionPromise = mongoose
+			.connect(MONGODB_URI, {
+				maxPoolSize: 10,
+				serverSelectionTimeoutMS: 5000,
+				socketTimeoutMS: 45000
+			})
+			.then((conn) => {
+				cachedConnection = conn;
+				if (dev) console.log('MongoDB connected');
+				return conn;
+			})
+			.catch((err) => {
+				console.error('MongoDB connection error:', err);
+				connectionPromise = null;
+				return null;
+			});
 	}
+
+	return connectionPromise;
+}
+
+export function isDBConnected(): boolean {
+	return cachedConnection !== null && mongoose.connection.readyState === 1;
 }
