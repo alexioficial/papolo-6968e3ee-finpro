@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-
-	let { userName = '', userRole = '', tenantName = '' } = $props();
+	let { userName = '', userRole = '', tenantName = '', currentPath = '' } = $props();
 
 	let mobileOpen = $state(false);
 
@@ -16,8 +14,6 @@
 	const adminItems = [
 		{ href: '/admin/users', label: 'Usuarios', icon: '👤' }
 	];
-
-	let currentPath = $derived($page.url.pathname);
 
 	function isActive(href: string) {
 		return currentPath === href || currentPath.startsWith(href + '/');
@@ -36,13 +32,9 @@
 <!-- Overlay -->
 {#if mobileOpen}
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div
-		onclick={() => (mobileOpen = false)}
-		class="fixed inset-0 bg-black/30 z-40 md:hidden"
-	></div>
+	<div onclick={() => (mobileOpen = false)} class="fixed inset-0 bg-black/30 z-40 md:hidden"></div>
 {/if}
 
-<!-- Sidebar -->
 <aside
 	class="fixed top-0 left-0 z-40 h-full w-64 bg-white border-r border-slate-200 transform transition-transform duration-200 md:translate-x-0 {mobileOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col"
 >
@@ -87,10 +79,7 @@
 				<p class="text-xs text-slate-400 capitalize">{userRole}</p>
 			</div>
 			<form method="POST" action="/logout">
-				<button
-					type="submit"
-					class="text-xs text-slate-400 hover:text-red-600 transition px-2 py-1"
-				>
+				<button type="submit" class="text-xs text-slate-400 hover:text-red-600 transition px-2 py-1">
 					Salir
 				</button>
 			</form>
