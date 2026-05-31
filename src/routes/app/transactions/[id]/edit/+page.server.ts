@@ -5,6 +5,7 @@ import { Category } from '$lib/server/models/Category';
 import { requireRole } from '$lib/server/authorize';
 import { updateTransaction } from '$lib/server/services/transaction.service';
 import { logAudit } from '$lib/server/services/audit.service';
+import { serialize } from '$lib/server/serialize';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -23,7 +24,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		Category.find({ tenantId, isActive: true }).select('name type color').lean()
 	]);
 
-	return { transaction, accounts, categories };
+	return serialize({ transaction, accounts, categories });
 };
 
 export const actions: Actions = {
@@ -46,20 +47,13 @@ export const actions: Actions = {
 
 		try {
 			const updated = await updateTransaction(params.id, tenantId, {
-				type: type as any,
-				accountId,
-				categoryId,
-				amount,
-				description,
-				date: new Date(dateStr),
-				reference: reference || undefined
+				type: type as any, accountId, categoryId, amount, description,
+				date: new Date(dateStr), reference: reference || undefined
 			});
 
 			await logAudit({
-				tenantId,
-				userId: locals.user!.id,
-				action: 'update',
-				entityType: 'transaction',
+				tenantId, userId: locals.user!.id,
+				action: 'update', entityType: 'transaction',
 				entityId: updated._id.toString(),
 				newValue: { type, amount, description }
 			});

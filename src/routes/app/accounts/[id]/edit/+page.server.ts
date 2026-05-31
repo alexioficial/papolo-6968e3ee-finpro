@@ -2,13 +2,14 @@ import { fail, redirect, error } from '@sveltejs/kit';
 import { Account } from '$lib/server/models/Account';
 import { requireRole } from '$lib/server/authorize';
 import { logAudit } from '$lib/server/services/audit.service';
+import { serialize } from '$lib/server/serialize';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	requireRole(['admin', 'contador'], locals.user?.role);
 	const account = await Account.findOne({ _id: params.id, tenantId: locals.user!.tenantId }).lean();
 	if (!account) throw error(404, 'Cuenta no encontrada');
-	return { account };
+	return serialize({ account });
 };
 
 export const actions: Actions = {

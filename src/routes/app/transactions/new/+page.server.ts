@@ -1,9 +1,10 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { Account } from '$lib/server/models/Account';
 import { Category } from '$lib/server/models/Category';
-import { requireRole, canWrite } from '$lib/server/authorize';
+import { requireRole } from '$lib/server/authorize';
 import { createTransaction } from '$lib/server/services/transaction.service';
 import { logAudit } from '$lib/server/services/audit.service';
+import { serialize } from '$lib/server/serialize';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -15,7 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		Category.find({ tenantId, isActive: true }).select('name type color').lean()
 	]);
 
-	return { accounts, categories };
+	return serialize({ accounts, categories });
 };
 
 export const actions: Actions = {
@@ -47,7 +48,6 @@ export const actions: Actions = {
 
 		const date = new Date(dateStr);
 
-		// Verify category type matches transaction type
 		const category = await Category.findOne({ _id: categoryId, tenantId });
 		if (!category || category.type !== type) {
 			return fail(400, {
@@ -58,23 +58,16 @@ export const actions: Actions = {
 
 		try {
 			const transaction = await createTransaction({
-				tenantId,
-				accountId,
-				categoryId,
+				tenantId, accountId, categoryId,
 				type: type as 'income' | 'expense',
-				amount,
-				description,
-				date,
-				isScheduled,
-				reference: reference || undefined,
+				amount, description, date,
+				isScheduled, reference: reference || undefined,
 				createdBy: locals.user!.id
 			});
 
 			await logAudit({
-				tenantId,
-				userId: locals.user!.id,
-				action: 'create',
-				entityType: 'transaction',
+				tenantId, userId: locals.user!.id,
+				action: 'create', entityType: 'transaction',
 				entityId: transaction._id.toString(),
 				newValue: { type, amount, description, accountId, categoryId }
 			});
