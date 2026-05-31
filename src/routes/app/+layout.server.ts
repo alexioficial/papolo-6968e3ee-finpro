@@ -6,6 +6,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		throw redirect(302, '/login');
 	}
 
+	// Basic check: return minimal data
 	return {
 		user: {
 			id: locals.user.id,
